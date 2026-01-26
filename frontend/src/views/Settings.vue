@@ -68,10 +68,7 @@
               <p class="text-xs uppercase tracking-[0.3em] text-muted-foreground">自动注册/刷新</p>
               <div class="mt-4 space-y-3">
                 <div class="grid grid-cols-2 items-center gap-x-6 gap-y-2">
-                  <Checkbox v-model="localSettings.basic.duckmail_verify_ssl">
-                    DuckMail SSL 校验
-                  </Checkbox>
-                  <div class="flex items-center justify-end gap-2">
+                  <div class="flex items-center justify-start gap-2">
                     <Checkbox v-model="localSettings.basic.browser_headless">
                       无头浏览器
                     </Checkbox>
@@ -87,13 +84,62 @@
                   :options="browserEngineOptions"
                   class="w-full"
                 />
-                <label class="block text-xs text-muted-foreground">DuckMail API</label>
-                <input
-                  v-model="localSettings.basic.duckmail_base_url"
-                  type="text"
-                  class="w-full rounded-2xl border border-input bg-background px-3 py-2 text-sm"
-                  placeholder="https://api.duckmail.sbs"
+                <div class="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                  <span>临时邮箱服务</span>
+                  <HelpTip text="选择用于自动注册账号的临时邮箱服务提供商。" />
+                </div>
+                <SelectMenu
+                  v-model="localSettings.basic.temp_mail_provider"
+                  :options="tempMailProviderOptions"
+                  class="w-full"
                 />
+
+                <!-- DuckMail 配置 -->
+                <template v-if="localSettings.basic.temp_mail_provider === 'duckmail'">
+                  <Checkbox v-model="localSettings.basic.duckmail_verify_ssl">
+                    DuckMail SSL 校验
+                  </Checkbox>
+                  <label class="block text-xs text-muted-foreground">DuckMail API</label>
+                  <input
+                    v-model="localSettings.basic.duckmail_base_url"
+                    type="text"
+                    class="w-full rounded-2xl border border-input bg-background px-3 py-2 text-sm"
+                    placeholder="https://api.duckmail.sbs"
+                  />
+                  <label class="block text-xs text-muted-foreground">DuckMail API 密钥</label>
+                  <input
+                    v-model="localSettings.basic.duckmail_api_key"
+                    type="text"
+                    class="w-full rounded-2xl border border-input bg-background px-3 py-2 text-sm"
+                    placeholder="dk_xxx"
+                  />
+                </template>
+
+                <!-- Moemail 配置 -->
+                <template v-if="localSettings.basic.temp_mail_provider === 'moemail'">
+                  <label class="block text-xs text-muted-foreground">Moemail API</label>
+                  <input
+                    v-model="localSettings.basic.moemail_base_url"
+                    type="text"
+                    class="w-full rounded-2xl border border-input bg-background px-3 py-2 text-sm"
+                    placeholder="https://moemail.app"
+                  />
+                  <label class="block text-xs text-muted-foreground">Moemail API 密钥</label>
+                  <input
+                    v-model="localSettings.basic.moemail_api_key"
+                    type="text"
+                    class="w-full rounded-2xl border border-input bg-background px-3 py-2 text-sm"
+                    placeholder="X-API-Key"
+                  />
+                  <label class="block text-xs text-muted-foreground">Moemail 域名（可选，留空随机）</label>
+                  <input
+                    v-model="localSettings.basic.moemail_domain"
+                    type="text"
+                    class="w-full rounded-2xl border border-input bg-background px-3 py-2 text-sm"
+                    placeholder="moemail.app"
+                  />
+                </template>
+
                 <div class="flex items-center justify-between gap-2 text-xs text-muted-foreground">
                   <span>过期刷新窗口（小时）</span>
                   <HelpTip text="当账号距离过期小于等于该值时，会触发自动登录刷新（更新 cookie/session）。" />
@@ -117,13 +163,6 @@
                   type="text"
                   class="w-full rounded-2xl border border-input bg-background px-3 py-2 text-sm"
                   placeholder="留空则自动选择"
-                />
-                <label class="block text-xs text-muted-foreground">DuckMail API 密钥</label>
-                <input
-                  v-model="localSettings.basic.duckmail_api_key"
-                  type="text"
-                  class="w-full rounded-2xl border border-input bg-background px-3 py-2 text-sm"
-                  placeholder="dk_xxx"
                 />
               </div>
             </div>
@@ -280,6 +319,10 @@ const browserEngineOptions = [
   { label: 'UC - 支持无头/有头', value: 'uc' },
   { label: 'DP - 支持无头/有头（推荐）', value: 'dp' },
 ]
+const tempMailProviderOptions = [
+  { label: 'DuckMail', value: 'duckmail' },
+  { label: 'Moemail', value: 'moemail' },
+]
 const imageOutputOptions = [
   { label: 'Base64 编码', value: 'base64' },
   { label: 'URL 链接', value: 'url' },
@@ -331,6 +374,14 @@ watch(settings, (value) => {
     : ''
   next.basic.duckmail_api_key = typeof next.basic.duckmail_api_key === 'string'
     ? next.basic.duckmail_api_key
+    : ''
+  next.basic.temp_mail_provider = next.basic.temp_mail_provider || 'duckmail'
+  next.basic.moemail_base_url = next.basic.moemail_base_url || 'https://moemail.app'
+  next.basic.moemail_api_key = typeof next.basic.moemail_api_key === 'string'
+    ? next.basic.moemail_api_key
+    : ''
+  next.basic.moemail_domain = typeof next.basic.moemail_domain === 'string'
+    ? next.basic.moemail_domain
     : ''
   next.retry = next.retry || {}
   next.retry.auto_refresh_accounts_seconds = Number.isFinite(next.retry.auto_refresh_accounts_seconds)

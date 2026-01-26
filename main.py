@@ -1360,6 +1360,10 @@ async def admin_get_settings(request: Request):
             "duckmail_base_url": config.basic.duckmail_base_url,
             "duckmail_api_key": config.basic.duckmail_api_key,
             "duckmail_verify_ssl": config.basic.duckmail_verify_ssl,
+            "temp_mail_provider": config.basic.temp_mail_provider,
+            "moemail_base_url": config.basic.moemail_base_url,
+            "moemail_api_key": config.basic.moemail_api_key,
+            "moemail_domain": config.basic.moemail_domain,
             "browser_engine": config.basic.browser_engine,
             "browser_headless": config.basic.browser_headless,
             "refresh_window_hours": config.basic.refresh_window_hours,
@@ -1407,6 +1411,10 @@ async def admin_update_settings(request: Request, new_settings: dict = Body(...)
         basic.setdefault("duckmail_base_url", config.basic.duckmail_base_url)
         basic.setdefault("duckmail_api_key", config.basic.duckmail_api_key)
         basic.setdefault("duckmail_verify_ssl", config.basic.duckmail_verify_ssl)
+        basic.setdefault("temp_mail_provider", config.basic.temp_mail_provider)
+        basic.setdefault("moemail_base_url", config.basic.moemail_base_url)
+        basic.setdefault("moemail_api_key", config.basic.moemail_api_key)
+        basic.setdefault("moemail_domain", config.basic.moemail_domain)
         basic.setdefault("browser_engine", config.basic.browser_engine)
         basic.setdefault("browser_headless", config.basic.browser_headless)
         basic.setdefault("refresh_window_hours", config.basic.refresh_window_hours)

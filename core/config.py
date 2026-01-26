@@ -50,6 +50,10 @@ class BasicConfig(BaseModel):
     duckmail_base_url: str = Field(default="https://api.duckmail.sbs", description="DuckMail API地址")
     duckmail_api_key: str = Field(default="", description="DuckMail API key")
     duckmail_verify_ssl: bool = Field(default=True, description="DuckMail SSL校验")
+    temp_mail_provider: str = Field(default="duckmail", description="临时邮箱提供商: duckmail/moemail")
+    moemail_base_url: str = Field(default="https://moemail.app", description="Moemail API地址")
+    moemail_api_key: str = Field(default="", description="Moemail API key")
+    moemail_domain: str = Field(default="", description="Moemail 邮箱域名（可选，留空则随机选择）")
     browser_engine: str = Field(default="dp", description="浏览器引擎：uc 或 dp")
     browser_headless: bool = Field(default=False, description="自动化浏览器无头模式")
     refresh_window_hours: int = Field(default=1, ge=0, le=24, description="过期刷新窗口（小时）")
@@ -189,6 +193,10 @@ class ConfigManager:
             duckmail_base_url=basic_data.get("duckmail_base_url") or "https://api.duckmail.sbs",
             duckmail_api_key=str(duckmail_api_key_raw or "").strip(),
             duckmail_verify_ssl=_parse_bool(basic_data.get("duckmail_verify_ssl"), True),
+            temp_mail_provider=basic_data.get("temp_mail_provider") or "duckmail",
+            moemail_base_url=basic_data.get("moemail_base_url") or "https://moemail.app",
+            moemail_api_key=str(basic_data.get("moemail_api_key") or "").strip(),
+            moemail_domain=str(basic_data.get("moemail_domain") or "").strip(),
             browser_engine=basic_data.get("browser_engine") or "dp",
             browser_headless=_parse_bool(basic_data.get("browser_headless"), False),
             refresh_window_hours=int(refresh_window_raw),

@@ -525,11 +525,12 @@
             <textarea
               v-model="importText"
               class="min-h-[140px] w-full rounded-2xl border border-input bg-background px-3 py-2 text-xs font-mono"
-              placeholder="duckmail----you@example.com----password&#10;user@outlook.com----loginPassword----clientId----refreshToken"
+              placeholder="duckmail----you@example.com----password&#10;moemail----you@moemail.app----emailId&#10;user@outlook.com----loginPassword----clientId----refreshToken"
             ></textarea>
             <div class="rounded-2xl border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-              <p>支持两种格式：</p>
+              <p>支持三种格式：</p>
               <p class="mt-1 font-mono">duckmail----email----password</p>
+              <p class="mt-1 font-mono">moemail----email----emailId</p>
               <p class="mt-1 font-mono">email----password----clientId----refreshToken</p>
               <p class="mt-2">导入后请执行一次"刷新选中"以获取 Cookie。</p>
               <p class="mt-1">注册失败建议关闭无头浏览器再试</p>
@@ -1177,6 +1178,26 @@ const parseImportLines = (raw: string) => {
         mail_provider: 'duckmail',
         mail_address: email,
         mail_password: password,
+      })
+      return
+    }
+
+    if (parts[0].toLowerCase() === 'moemail') {
+      if (parts.length < 3 || !parts[1] || !parts[2]) {
+        errors.push(`第 ${lineNo} 行格式错误（moemail）`)
+        return
+      }
+      const email = parts[1]
+      const emailId = parts[2]  // moemail 的 email_id 作为 password 存储
+      items.push({
+        id: email,
+        secure_c_ses: '',
+        csesidx: '',
+        config_id: '',
+        expires_at: IMPORT_EXPIRES_AT,
+        mail_provider: 'moemail',
+        mail_address: email,
+        mail_password: emailId,
       })
       return
     }

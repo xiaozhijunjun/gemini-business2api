@@ -135,20 +135,34 @@ class RegisterService(BaseTaskService[RegisterTask]):
         log_cb("info", "🆕 开始注册新账户")
         log_cb("info", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
-        client = DuckMailClient(
-            base_url=config.basic.duckmail_base_url,
-            proxy=config.basic.proxy_for_auth,
-            verify_ssl=config.basic.duckmail_verify_ssl,
-            api_key=config.basic.duckmail_api_key,
-            log_callback=log_cb,
-        )
+        # 根据配置选择邮件提供商
+        temp_mail_provider = (config.basic.temp_mail_provider or "duckmail").lower()
 
-        log_cb("info", "📧 步骤 1/3: 注册 DuckMail 邮箱...")
+        log_cb("info", f"📧 步骤 1/3: 注册临时邮箱 (提供商={temp_mail_provider})...")
+
+        if temp_mail_provider == "moemail":
+            from core.moemail_client import MoemailClient
+            client = MoemailClient(
+                base_url=config.basic.moemail_base_url,
+                proxy=config.basic.proxy_for_auth,
+                api_key=config.basic.moemail_api_key,
+                domain=domain or config.basic.moemail_domain,
+                log_callback=log_cb,
+            )
+        else:
+            client = DuckMailClient(
+                base_url=config.basic.duckmail_base_url,
+                proxy=config.basic.proxy_for_auth,
+                verify_ssl=config.basic.duckmail_verify_ssl,
+                api_key=config.basic.duckmail_api_key,
+                log_callback=log_cb,
+            )
+
         if not client.register_account(domain=domain):
-            log_cb("error", "❌ DuckMail 邮箱注册失败")
-            return {"success": False, "error": "DuckMail 注册失败"}
+            log_cb("error", f"❌ {temp_mail_provider} 邮箱注册失败")
+            return {"success": False, "error": f"{temp_mail_provider} 注册失败"}
 
-        log_cb("info", f"✅ DuckMail 邮箱注册成功: {client.email}")
+        log_cb("info", f"✅ 邮箱注册成功: {client.email}")
 
         # 根据配置选择浏览器引擎
         browser_engine = (config.basic.browser_engine or "dp").lower()
@@ -193,7 +207,7 @@ class RegisterService(BaseTaskService[RegisterTask]):
         log_cb("info", "✅ Gemini 登录成功，正在保存配置...")
 
         config_data = result["config"]
-        config_data["mail_provider"] = "duckmail"
+        config_data["mail_provider"] = temp_mail_provider
         config_data["mail_address"] = client.email
         config_data["mail_password"] = client.password
 

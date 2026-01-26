@@ -75,6 +75,10 @@ export interface Settings {
     duckmail_base_url?: string
     duckmail_api_key?: string
     duckmail_verify_ssl?: boolean
+    temp_mail_provider?: string
+    moemail_base_url?: string
+    moemail_api_key?: string
+    moemail_domain?: string
     browser_engine?: string
     browser_headless?: boolean
     refresh_window_hours?: number

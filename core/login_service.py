@@ -185,6 +185,19 @@ class LoginService(BaseTaskService[LoginTask]):
                 log_callback=log_cb,
             )
             client.set_credentials(account_id, mail_password)
+        elif mail_provider == "moemail":
+            from core.moemail_client import MoemailClient
+            if not mail_password:
+                return {"success": False, "email": account_id, "error": "mail password (email_id) missing"}
+            # Moemail: mail_password 存储的是 email_id
+            client = MoemailClient(
+                base_url=config.basic.moemail_base_url,
+                proxy=config.basic.proxy,
+                api_key=config.basic.moemail_api_key,
+                log_callback=log_cb,
+            )
+            client.set_credentials(account_id, mail_password)
+            client.email_id = mail_password  # 设置 email_id 用于获取邮件
         else:
             return {"success": False, "email": account_id, "error": f"不支持的邮件提供商: {mail_provider}"}
 
