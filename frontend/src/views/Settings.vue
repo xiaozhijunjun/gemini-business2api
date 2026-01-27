@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="space-y-8">
     <section v-if="isLoading" class="rounded-3xl border border-border bg-card p-6 text-sm text-muted-foreground">
       正在加载设置...
@@ -93,6 +93,13 @@
                   :options="tempMailProviderOptions"
                   class="w-full"
                 />
+                <div class="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                  <span>临时邮箱代理</span>
+                  <HelpTip text="启用后临时邮箱请求将使用账户操作代理地址。" />
+                </div>
+                <Checkbox v-model="localSettings.basic.mail_proxy_enabled">
+                  启用邮箱代理（使用账户操作代理）
+                </Checkbox>
 
                 <!-- DuckMail 配置 -->
                 <template v-if="localSettings.basic.temp_mail_provider === 'duckmail'">
@@ -137,6 +144,34 @@
                     type="text"
                     class="w-full rounded-2xl border border-input bg-background px-3 py-2 text-sm"
                     placeholder="moemail.app"
+                  />
+                </template>
+
+                <!-- Freemail 配置 -->
+                <template v-if="localSettings.basic.temp_mail_provider === 'freemail'">
+                  <Checkbox v-model="localSettings.basic.freemail_verify_ssl">
+                    Freemail SSL 校验
+                  </Checkbox>
+                  <label class="block text-xs text-muted-foreground">Freemail API</label>
+                  <input
+                    v-model="localSettings.basic.freemail_base_url"
+                    type="text"
+                    class="w-full rounded-2xl border border-input bg-background px-3 py-2 text-sm"
+                    placeholder="http://your-freemail-server.com"
+                  />
+                  <label class="block text-xs text-muted-foreground">Freemail JWT Token</label>
+                  <input
+                    v-model="localSettings.basic.freemail_jwt_token"
+                    type="text"
+                    class="w-full rounded-2xl border border-input bg-background px-3 py-2 text-sm"
+                    placeholder="eyJ..."
+                  />
+                  <label class="block text-xs text-muted-foreground">Freemail 域名（可选，留空随机）</label>
+                  <input
+                    v-model="localSettings.basic.freemail_domain"
+                    type="text"
+                    class="w-full rounded-2xl border border-input bg-background px-3 py-2 text-sm"
+                    placeholder="freemail.local"
                   />
                 </template>
 
@@ -381,6 +416,15 @@ watch(settings, (value) => {
   next.basic.moemail_domain = typeof next.basic.moemail_domain === 'string'
     ? next.basic.moemail_domain
     : ''
+  next.basic.freemail_base_url = next.basic.freemail_base_url || 'http://your-freemail-server.com'
+  next.basic.freemail_jwt_token = typeof next.basic.freemail_jwt_token === 'string'
+    ? next.basic.freemail_jwt_token
+    : ''
+  next.basic.freemail_verify_ssl = next.basic.freemail_verify_ssl ?? true
+  next.basic.freemail_domain = typeof next.basic.freemail_domain === 'string'
+    ? next.basic.freemail_domain
+    : ''
+  next.basic.mail_proxy_enabled = next.basic.mail_proxy_enabled ?? false
   next.retry = next.retry || {}
   next.retry.auto_refresh_accounts_seconds = Number.isFinite(next.retry.auto_refresh_accounts_seconds)
     ? next.retry.auto_refresh_accounts_seconds

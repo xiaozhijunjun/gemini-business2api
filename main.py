@@ -1364,6 +1364,11 @@ async def admin_get_settings(request: Request):
             "moemail_base_url": config.basic.moemail_base_url,
             "moemail_api_key": config.basic.moemail_api_key,
             "moemail_domain": config.basic.moemail_domain,
+            "freemail_base_url": config.basic.freemail_base_url,
+            "freemail_jwt_token": config.basic.freemail_jwt_token,
+            "freemail_verify_ssl": config.basic.freemail_verify_ssl,
+            "freemail_domain": config.basic.freemail_domain,
+            "mail_proxy_enabled": config.basic.mail_proxy_enabled,
             "browser_engine": config.basic.browser_engine,
             "browser_headless": config.basic.browser_headless,
             "refresh_window_hours": config.basic.refresh_window_hours,
@@ -1415,6 +1420,11 @@ async def admin_update_settings(request: Request, new_settings: dict = Body(...)
         basic.setdefault("moemail_base_url", config.basic.moemail_base_url)
         basic.setdefault("moemail_api_key", config.basic.moemail_api_key)
         basic.setdefault("moemail_domain", config.basic.moemail_domain)
+        basic.setdefault("freemail_base_url", config.basic.freemail_base_url)
+        basic.setdefault("freemail_jwt_token", config.basic.freemail_jwt_token)
+        basic.setdefault("freemail_verify_ssl", config.basic.freemail_verify_ssl)
+        basic.setdefault("freemail_domain", config.basic.freemail_domain)
+        basic.setdefault("mail_proxy_enabled", config.basic.mail_proxy_enabled)
         basic.setdefault("browser_engine", config.basic.browser_engine)
         basic.setdefault("browser_headless", config.basic.browser_headless)
         basic.setdefault("refresh_window_hours", config.basic.refresh_window_hours)

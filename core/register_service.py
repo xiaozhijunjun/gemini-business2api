@@ -138,10 +138,13 @@ class RegisterService(BaseTaskService[RegisterTask]):
 
         log_cb("info", f"📧 步骤 1/3: 注册临时邮箱 (提供商={temp_mail_provider})...")
 
+        if temp_mail_provider == "freemail" and not config.basic.freemail_jwt_token:
+            log_cb("error", "❌ Freemail JWT Token 未配置")
+            return {"success": False, "error": "Freemail JWT Token 未配置"}
+
         client = create_temp_mail_client(
             temp_mail_provider,
             domain=domain,
-            proxy=config.basic.proxy_for_auth,
             log_cb=log_cb,
         )
 
@@ -196,7 +199,12 @@ class RegisterService(BaseTaskService[RegisterTask]):
         config_data = result["config"]
         config_data["mail_provider"] = temp_mail_provider
         config_data["mail_address"] = client.email
-        config_data["mail_password"] = client.password
+        if temp_mail_provider == "freemail":
+            config_data["mail_password"] = ""
+        elif temp_mail_provider == "moemail":
+            config_data["mail_password"] = getattr(client, "email_id", "") or getattr(client, "password", "")
+        else:
+            config_data["mail_password"] = getattr(client, "password", "")
 
         accounts_data = load_accounts_from_source()
         updated = False

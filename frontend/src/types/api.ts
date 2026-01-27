@@ -66,7 +66,7 @@ export interface Stats {
   requests_per_hour: number
 }
 
-export type TempMailProvider = 'duckmail' | 'moemail'
+export type TempMailProvider = 'duckmail' | 'moemail' | 'freemail'
 
 export interface Settings {
   basic: {
@@ -81,6 +81,11 @@ export interface Settings {
     moemail_base_url?: string
     moemail_api_key?: string
     moemail_domain?: string
+    freemail_base_url?: string
+    freemail_jwt_token?: string
+    freemail_verify_ssl?: boolean
+    freemail_domain?: string
+    mail_proxy_enabled?: boolean
     browser_engine?: string
     browser_headless?: boolean
     refresh_window_hours?: number

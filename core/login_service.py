@@ -173,17 +173,19 @@ class LoginService(BaseTaskService[LoginTask]):
                 log_callback=log_cb,
             )
             client.set_credentials(mail_address)
-        elif mail_provider in ("duckmail", "moemail"):
-            if not mail_password:
+        elif mail_provider in ("duckmail", "moemail", "freemail"):
+            if mail_provider != "freemail" and not mail_password:
                 error_message = "邮箱密码缺失" if mail_provider == "duckmail" else "mail password (email_id) missing"
                 return {"success": False, "email": account_id, "error": error_message}
+            if mail_provider == "freemail" and not config.basic.freemail_jwt_token:
+                return {"success": False, "email": account_id, "error": "Freemail JWT Token 未配置"}
             # DuckMail: account_id 就是邮箱地址; Moemail: mail_password 存储的是 email_id
             client = create_temp_mail_client(
                 mail_provider,
-                proxy=config.basic.proxy_for_auth,
                 log_cb=log_cb,
             )
-            client.set_credentials(account_id, mail_password)
+            mail_address = account.get("mail_address") or account_id
+            client.set_credentials(mail_address, mail_password)
             if mail_provider == "moemail":
                 client.email_id = mail_password  # 设置 email_id 用于获取邮件
         else:
@@ -232,7 +234,7 @@ class LoginService(BaseTaskService[LoginTask]):
         # 更新账户配置
         config_data = result["config"]
         config_data["mail_provider"] = mail_provider
-        config_data["mail_password"] = mail_password
+        config_data["mail_password"] = mail_password if mail_provider != "freemail" else ""
         if mail_provider == "microsoft":
             config_data["mail_address"] = account.get("mail_address") or account_id
             config_data["mail_client_id"] = mail_client_id
@@ -270,9 +272,14 @@ class LoginService(BaseTaskService[LoginTask]):
             if mail_provider == "microsoft":
                 if not account.get("mail_client_id") or not account.get("mail_refresh_token"):
                     continue
-            else:
+            elif mail_provider in ("duckmail", "moemail"):
                 if not mail_password:
                     continue
+            elif mail_provider == "freemail":
+                if not config.basic.freemail_jwt_token:
+                    continue
+            else:
+                continue
             expires_at = account.get("expires_at")
             if not expires_at:
                 continue
