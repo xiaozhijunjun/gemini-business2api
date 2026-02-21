@@ -42,6 +42,7 @@ RUN apt-get update && \
 COPY main.py .
 COPY core ./core
 COPY util ./util
+COPY scripts ./scripts
 
 # 从 builder 阶段只复制构建好的静态文件
 COPY --from=frontend-builder /app/static ./static

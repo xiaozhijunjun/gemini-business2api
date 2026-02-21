@@ -3,14 +3,15 @@
 
 优先级规则：
 1. 安全配置：仅环境变量（ADMIN_KEY, SESSION_SECRET_KEY）
-2. 业务配置：YAML 配置文件 > 默认值
+2. 业务配置：数据库 > 默认值
 
 配置分类：
 - 安全配置：仅从环境变量读取，不可热更新（ADMIN_KEY, SESSION_SECRET_KEY）
-- 业务配置：仅从 YAML 读取，支持热更新（API_KEY, BASE_URL, PROXY, 重试策略等）
+- 业务配置：仅从数据库读取，支持热更新（API_KEY, BASE_URL, PROXY, 重试策略等）
 """
 
 import os
+import shutil
 import yaml
 import secrets
 from pathlib import Path
@@ -43,7 +44,7 @@ def _parse_bool(value, default: bool) -> bool:
 
 class BasicConfig(BaseModel):
     """基础配置"""
-    api_key: str = Field(default="", description="API访问密钥（留空则公开访问）")
+    api_key: str = Field(default="", description="API访问密钥（留空则公开访问，多个密钥用逗号分隔）")
     base_url: str = Field(default="", description="服务器URL（留空则自动检测）")
     proxy_for_auth: str = Field(default="", description="账户操作代理地址（注册/登录/刷新，留空则不使用代理）")
     proxy_for_chat: str = Field(default="", description="对话操作代理地址（JWT/会话/消息，留空则不使用代理）")
@@ -60,10 +61,10 @@ class BasicConfig(BaseModel):
     freemail_domain: str = Field(default="", description="Freemail 邮箱域名（可选，留空则随机选择）")
     mail_proxy_enabled: bool = Field(default=False, description="是否启用临时邮箱代理（使用账户操作代理）")
     gptmail_base_url: str = Field(default="https://mail.chatgpt.org.uk", description="GPTMail API地址")
-    gptmail_api_key: str = Field(default="", description="GPTMail API key")
+    gptmail_api_key: str = Field(default="gpt-test", description="GPTMail API key")
     gptmail_verify_ssl: bool = Field(default=True, description="GPTMail SSL校验")
     gptmail_domain: str = Field(default="", description="GPTMail 邮箱域名（可选，留空则随机选择）")
-    browser_engine: str = Field(default="dp", description="浏览器引擎：uc 或 dp")
+    browser_engine: str = Field(default="dp", description="浏览器引擎")
     browser_headless: bool = Field(default=False, description="自动化浏览器无头模式")
     refresh_window_hours: int = Field(default=1, ge=0, le=24, description="过期刷新窗口（小时）")
     register_default_count: int = Field(default=1, ge=1, description="默认注册数量")
@@ -72,9 +73,9 @@ class BasicConfig(BaseModel):
 
 class ImageGenerationConfig(BaseModel):
     """图片生成配置"""
-    enabled: bool = Field(default=True, description="是否启用图片生成")
+    enabled: bool = Field(default=False, description="是否启用图片生成")
     supported_models: List[str] = Field(
-        default=["gemini-3-pro-preview"],
+        default=[],
         description="支持图片生成的模型列表"
     )
     output_format: str = Field(default="base64", description="图片输出格式：base64 或 url")
@@ -94,14 +95,16 @@ class VideoGenerationConfig(BaseModel):
 
 class RetryConfig(BaseModel):
     """重试策略配置"""
-    max_new_session_tries: int = Field(default=5, ge=1, le=20, description="新会话尝试账户数")
-    max_request_retries: int = Field(default=3, ge=1, le=10, description="请求失败重试次数")
     max_account_switch_tries: int = Field(default=5, ge=1, le=20, description="账户切换尝试次数")
-    account_failure_threshold: int = Field(default=3, ge=1, le=10, description="账户失败阈值")
-    rate_limit_cooldown_seconds: int = Field(default=3600, ge=3600, le=43200, description="429冷却时间（秒）")
+    rate_limit_cooldown_seconds: int = Field(default=7200, ge=3600, le=43200, description="429冷却时间（秒）")
+    text_rate_limit_cooldown_seconds: int = Field(default=7200, ge=3600, le=86400, description="对话配额冷却（秒）")
+    images_rate_limit_cooldown_seconds: int = Field(default=14400, ge=3600, le=86400, description="绘图配额冷却（秒）")
+    videos_rate_limit_cooldown_seconds: int = Field(default=14400, ge=3600, le=86400, description="视频配额冷却（秒）")
     session_cache_ttl_seconds: int = Field(default=3600, ge=0, le=86400, description="会话缓存时间（秒，0表示禁用缓存）")
     auto_refresh_accounts_seconds: int = Field(default=60, ge=0, le=600, description="自动刷新账号间隔（秒，0禁用）")
-
+    # 定时刷新配置
+    scheduled_refresh_enabled: bool = Field(default=False, description="是否启用定时刷新任务")
+    scheduled_refresh_interval_minutes: int = Field(default=30, ge=0, le=720, description="定时刷新检测间隔（分钟，0-12小时）")
 
 class PublicDisplayConfig(BaseModel):
     """公开展示配置"""
@@ -125,7 +128,7 @@ class AppConfig(BaseModel):
     # 安全配置（仅从环境变量）
     security: SecurityConfig
 
-    # 业务配置（环境变量 > YAML > 默认值）
+    # 业务配置（环境变量 > 数据库 > 默认值）
     basic: BasicConfig
     image_generation: ImageGenerationConfig
     video_generation: VideoGenerationConfig = Field(default_factory=VideoGenerationConfig)
@@ -142,10 +145,7 @@ class ConfigManager:
     def __init__(self, yaml_path: str = None):
         # 自动检测环境并设置默认路径
         if yaml_path is None:
-            if os.path.exists("/data"):
-                yaml_path = "/data/settings.yaml"  # HF Pro 持久化
-            else:
-                yaml_path = "data/settings.yaml"  # 本地存储
+            yaml_path = ""
         self.yaml_path = Path(yaml_path)
         self._config: Optional[AppConfig] = None
         self.load()
@@ -156,9 +156,9 @@ class ConfigManager:
 
         优先级规则：
         1. 安全配置（ADMIN_KEY, SESSION_SECRET_KEY）：仅从环境变量读取
-        2. 其他配置：YAML > 默认值
+        2. 业务配置：数据库 > 默认值
         """
-        # 1. 加载 YAML 配置
+        # 1. 从数据库加载配置
         yaml_data = self._load_yaml()
 
         # 2. 加载安全配置（仅从环境变量，不允许 Web 修改）
@@ -167,7 +167,7 @@ class ConfigManager:
             session_secret_key=os.getenv("SESSION_SECRET_KEY", self._generate_secret())
         )
 
-        # 3. 加载基础配置（YAML > 默认值）
+        # 3. 加载基础配置（数据库 > 默认值）
         basic_data = yaml_data.get("basic", {})
         refresh_window_raw = basic_data.get("refresh_window_hours", 1)
         register_default_raw = basic_data.get("register_default_count", 1)
@@ -202,8 +202,8 @@ class ConfigManager:
             duckmail_base_url=basic_data.get("duckmail_base_url") or "https://api.duckmail.sbs",
             duckmail_api_key=str(duckmail_api_key_raw or "").strip(),
             duckmail_verify_ssl=_parse_bool(basic_data.get("duckmail_verify_ssl"), True),
-            temp_mail_provider=basic_data.get("temp_mail_provider") or "duckmail",
-            moemail_base_url=basic_data.get("moemail_base_url") or "https://moemail.app",
+            temp_mail_provider=basic_data.get("temp_mail_provider") or "moemail",
+            moemail_base_url=basic_data.get("moemail_base_url") or "https://moemail.nanohajimi.mom",
             moemail_api_key=str(basic_data.get("moemail_api_key") or "").strip(),
             moemail_domain=str(basic_data.get("moemail_domain") or "").strip(),
             freemail_base_url=basic_data.get("freemail_base_url") or "http://your-freemail-server.com",
@@ -214,6 +214,7 @@ class ConfigManager:
             gptmail_base_url=str(basic_data.get("gptmail_base_url") or "https://mail.chatgpt.org.uk").strip(),
             gptmail_api_key=str(basic_data.get("gptmail_api_key") or "").strip(),
             gptmail_verify_ssl=_parse_bool(basic_data.get("gptmail_verify_ssl"), True),
+            gptmail_domain=str(basic_data.get("gptmail_domain") or "").strip(),
             browser_engine=basic_data.get("browser_engine") or "dp",
             browser_headless=_parse_bool(basic_data.get("browser_headless"), False),
             refresh_window_hours=int(refresh_window_raw),
@@ -221,32 +222,46 @@ class ConfigManager:
             register_domain=str(register_domain_raw or "").strip(),
         )
 
-        # 4. 加载其他配置（从 YAML）
-        image_generation_config = ImageGenerationConfig(
-            **yaml_data.get("image_generation", {})
-        )
+        # 4. 加载其他配置（从数据库，带容错处理）
+        try:
+            image_generation_config = ImageGenerationConfig(
+                **yaml_data.get("image_generation", {})
+            )
+        except Exception as e:
+            print(f"[WARN] 图片生成配置加载失败，使用默认值: {e}")
+            image_generation_config = ImageGenerationConfig()
 
         # 加载视频生成配置
-        video_generation_config = VideoGenerationConfig(
-            **yaml_data.get("video_generation", {})
-        )
+        try:
+            video_generation_config = VideoGenerationConfig(
+                **yaml_data.get("video_generation", {})
+            )
+        except Exception as e:
+            print(f"[WARN] 视频生成配置加载失败，使用默认值: {e}")
+            video_generation_config = VideoGenerationConfig()
 
-        # 加载重试配置，自动修正不在 1-12 小时范围内的值
-        retry_data = yaml_data.get("retry", {})
-        if "rate_limit_cooldown_seconds" in retry_data:
-            value = retry_data["rate_limit_cooldown_seconds"]
-            if value < 3600 or value > 43200:  # 不在 1-12 小时范围，默认 1 小时
-                retry_data["rate_limit_cooldown_seconds"] = 3600
+        # 加载重试配置（Pydantic 会自动验证范围）
+        try:
+            retry_config = RetryConfig(**yaml_data.get("retry", {}))
+        except Exception as e:
+            print(f"[WARN] 重试配置加载失败，使用默认值: {e}")
+            retry_config = RetryConfig()
 
-        retry_config = RetryConfig(**retry_data)
+        try:
+            public_display_config = PublicDisplayConfig(
+                **yaml_data.get("public_display", {})
+            )
+        except Exception as e:
+            print(f"[WARN] 公开展示配置加载失败，使用默认值: {e}")
+            public_display_config = PublicDisplayConfig()
 
-        public_display_config = PublicDisplayConfig(
-            **yaml_data.get("public_display", {})
-        )
-
-        session_config = SessionConfig(
-            **yaml_data.get("session", {})
-        )
+        try:
+            session_config = SessionConfig(
+                **yaml_data.get("session", {})
+            )
+        except Exception as e:
+            print(f"[WARN] Session配置加载失败，使用默认值: {e}")
+            session_config = SessionConfig()
 
         # 5. 构建完整配置
         self._config = AppConfig(
@@ -260,38 +275,90 @@ class ConfigManager:
         )
 
     def _load_yaml(self) -> dict:
-        """加载 YAML 文件"""
+        """从数据库加载配置（允许空配置）。"""
         if storage.is_database_enabled():
             try:
                 data = storage.load_settings_sync()
+
+                # 允许空库启动：None 可能是空配置或连接异常
+                if data is None:
+                    print("[WARN] 未读取到 settings（可能为空库或连接异常），将使用默认配置启动")
+                    return {}
+
                 if isinstance(data, dict):
                     return data
+
+                return {}
+            except RuntimeError:
+                # 重新抛出 RuntimeError
+                raise
             except Exception as e:
-                print(f"[WARN] 加载数据库设置失败: {e}，使用本地配置")
-        if self.yaml_path.exists():
-            try:
-                with open(self.yaml_path, 'r', encoding='utf-8') as f:
-                    return yaml.safe_load(f) or {}
-            except Exception as e:
-                print(f"[WARN] 加载配置文件失败: {e}，使用默认配置")
-        return {}
+                print(f"[ERROR] 数据库加载失败: {e}")
+                raise RuntimeError(f"数据库加载失败: {e}")
+
+        print("[ERROR] 未启用数据库")
+        raise RuntimeError("未配置 DATABASE_URL，应用无法启动")
 
     def _generate_secret(self) -> str:
         """生成随机密钥"""
         return secrets.token_urlsafe(32)
 
     def save_yaml(self, data: dict):
-        """保存 YAML 配置"""
-        if storage.is_database_enabled():
-            try:
-                saved = storage.save_settings_sync(data)
-                if saved:
-                    return
-            except Exception as e:
-                print(f"[WARN] 保存数据库设置失败: {e}，降级到本地文件")
-        self.yaml_path.parent.mkdir(exist_ok=True)
-        with open(self.yaml_path, 'w', encoding='utf-8') as f:
-            yaml.dump(data, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+        """保存配置到数据库（先验证再保存）"""
+        if not storage.is_database_enabled():
+            raise RuntimeError("Database is not enabled")
+
+        # 先验证数据是否符合 Pydantic 模型要求
+        try:
+            # 构建临时配置进行验证
+            security_config = SecurityConfig(
+                admin_key=os.getenv("ADMIN_KEY", ""),
+                session_secret_key=os.getenv("SESSION_SECRET_KEY", self._generate_secret())
+            )
+
+            basic_data = data.get("basic", {})
+            basic_config = BasicConfig(**basic_data)
+
+            image_generation_config = ImageGenerationConfig(
+                **data.get("image_generation", {})
+            )
+
+            video_generation_config = VideoGenerationConfig(
+                **data.get("video_generation", {})
+            )
+
+            retry_config = RetryConfig(**data.get("retry", {}))
+
+            public_display_config = PublicDisplayConfig(
+                **data.get("public_display", {})
+            )
+
+            session_config = SessionConfig(
+                **data.get("session", {})
+            )
+
+            # 验证通过，构建完整配置
+            test_config = AppConfig(
+                security=security_config,
+                basic=basic_config,
+                image_generation=image_generation_config,
+                video_generation=video_generation_config,
+                retry=retry_config,
+                public_display=public_display_config,
+                session=session_config
+            )
+        except Exception as e:
+            # 验证失败，不保存到数据库
+            raise ValueError(f"配置验证失败: {str(e)}")
+
+        # 验证通过后才保存到数据库
+        try:
+            saved = storage.save_settings_sync(data)
+            if saved:
+                return
+        except Exception as e:
+            print(f"[WARN] 数据库保存失败: {e}")
+        raise RuntimeError("Database write failed")
 
     def reload(self):
         """重新加载配置（热更新）"""
@@ -370,38 +437,37 @@ class ConfigManager:
         return self._config.session.expire_hours
 
     @property
-    def max_new_session_tries(self) -> int:
-        """新会话尝试账户数"""
-        return self._config.retry.max_new_session_tries
-
-    @property
-    def max_request_retries(self) -> int:
-        """请求失败重试次数"""
-        return self._config.retry.max_request_retries
-
-    @property
     def max_account_switch_tries(self) -> int:
         """账户切换尝试次数"""
         return self._config.retry.max_account_switch_tries
 
     @property
-    def account_failure_threshold(self) -> int:
-        """账户失败阈值"""
-        return self._config.retry.account_failure_threshold
-
-    @property
     def rate_limit_cooldown_seconds(self) -> int:
-        """429冷却时间（秒）"""
+        # 429 cooldown (seconds)
+        if hasattr(self._config.retry, 'text_rate_limit_cooldown_seconds'):
+            return self._config.retry.text_rate_limit_cooldown_seconds
         return self._config.retry.rate_limit_cooldown_seconds
 
     @property
+    def text_rate_limit_cooldown_seconds(self) -> int:
+        return self._config.retry.text_rate_limit_cooldown_seconds
+
+    @property
+    def images_rate_limit_cooldown_seconds(self) -> int:
+        return self._config.retry.images_rate_limit_cooldown_seconds
+
+    @property
+    def videos_rate_limit_cooldown_seconds(self) -> int:
+        return self._config.retry.videos_rate_limit_cooldown_seconds
+
+    @property
     def session_cache_ttl_seconds(self) -> int:
-        """会话缓存时间（秒）"""
+        # Session cache TTL (seconds)
         return self._config.retry.session_cache_ttl_seconds
 
     @property
     def auto_refresh_accounts_seconds(self) -> int:
-        """自动刷新账号间隔（秒，0禁用）"""
+        # Auto refresh accounts interval (seconds)
         return self._config.retry.auto_refresh_accounts_seconds
 
 
